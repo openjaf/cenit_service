@@ -50,3 +50,6 @@ DEPENDENCIES
   mongoid
   nokogiri
   sinatra
+
+BUNDLED WITH
+   1.10.4
