@@ -75,10 +75,10 @@ module Setup
       cursor = doc.root.first_element_child
       while cursor
         if %w(import include redefine).include?(cursor.name) && (attr = cursor.attributes['schemaLocation'])
-          attr.value = options[:service_url].to_s + '?' + {
+          attr.value = options[:service_url].to_s + '/schema?' + {
               key: Account.current.owner.unique_key,
               library_id: library.id.to_s,
-              uri: attr.value
+              uri: Cenit::Utility.abs_uri(uri, attr.value)
           }.to_param
         end
         cursor = cursor.next_element
@@ -86,5 +86,30 @@ module Setup
       doc.to_xml
     end
 
+  end
+end
+
+module Cenit
+  class Utility
+    class << self
+      def abs_uri(base_uri, uri)
+        uri = URI.parse(uri.to_s)
+        return uri.to_s unless uri.relative?
+
+        base_uri = URI.parse(base_uri.to_s)
+        uri = uri.to_s.split('/')
+        path = base_uri.path.split('/')
+        begin
+          path.pop
+        end while uri[0] == '..' ? uri.shift && true : false
+
+        path = (path + uri).join('/')
+
+        uri = URI.parse(path)
+        uri.scheme = base_uri.scheme
+        uri.host = base_uri.host
+        uri.to_s
+      end
+    end
   end
 end
