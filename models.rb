@@ -44,20 +44,13 @@ end
 
 module Setup
 
-  class Library
-    include AccountScoped
-
-    field :slug, type: String
-  end
-
   class Validator
     include AccountScoped
   end
 
   class Schema < Validator
 
-    belongs_to :library, class_name: Setup::Library.to_s, inverse_of: :schemas
-
+    field :namespace
     field :uri, type: String
     field :schema, type: String
     field :schema_type, type: Symbol
@@ -76,9 +69,9 @@ module Setup
       while cursor
         if %w(import include redefine).include?(cursor.name) && (attr = cursor.attributes['schemaLocation'])
           attr.value = options[:service_url].to_s + '/schema?' + {
-              key: Account.current.owner.unique_key,
-              library_id: library.id.to_s,
-              uri: Cenit::Utility.abs_uri(uri, attr.value)
+            key: Account.current.owner.unique_key,
+            ns: namespace,
+            uri: Cenit::Utility.abs_uri(uri, attr.value)
           }.to_param
         end
         cursor = cursor.next_element
@@ -87,6 +80,28 @@ module Setup
     end
 
   end
+
+  class Notification
+    include Mongoid::Document
+    include Mongoid::Timestamps
+
+    field :type, type: Symbol, default: :error
+    field :message, type: String
+
+    validates_presence_of :type, :message
+    validates_inclusion_of :type, in: ->(n) { n.type_enum }
+
+    def type_enum
+      Setup::Notification.type_enum
+    end
+
+    class << self
+      def type_enum
+        [:error, :warning, :notice, :info]
+      end
+    end
+  end
+
 end
 
 module Cenit
