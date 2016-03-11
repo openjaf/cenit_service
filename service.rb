@@ -15,10 +15,12 @@ before do
   end
 end
 
-get '/schema' do
-  if (schema = Setup::Schema.where(namespace: params[:ns], uri: params[:uri]).first)
-    schema.cenit_ref_schema(service_url: request.base_url)
-  else
-    halt 404
+class Service < ::Sinatra::Base
+  get '/schema' do
+    if (schema = Setup::Schema.where(namespace: params[:ns], uri: params[:uri]).first)
+      schema.cenit_ref_schema(service_url: request.base_url)
+    else
+      halt 404
+    end
   end
 end
