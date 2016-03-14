@@ -1,12 +1,12 @@
-require 'sinatra'
+require 'sinatra/base'
 require 'mongoid'
 require './models'
 
-configure do
-  Mongoid::Config.load!('mongoid.yml')
-end
-
 class Service < ::Sinatra::Base
+
+  configure do
+    Mongoid::Config.load!('mongoid.yml')
+  end
 
   before do
     if (key = params[:key]) && (user = User.where(unique_key: key).first)
