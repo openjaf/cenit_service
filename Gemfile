@@ -4,5 +4,6 @@ gem 'mongoid'
 gem 'bson_ext'
 gem 'nokogiri'
 gem 'devise'
+gem 'jwt'
 
 gem 'unicorn'

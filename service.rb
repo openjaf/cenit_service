@@ -3,8 +3,13 @@ require 'mongoid'
 require './models'
 
 ENV['TOKEN_PATH'] = '/oauth/token'
+ENV['HOMEPAGE'] = 'www.cenit.io'
 
-class Service < ::Sinatra::Base
+Cenit.config do
+  homepage ENV['HOMEPAGE']
+end
+
+# class Service < ::Sinatra::Base
 
   configure do
     Mongoid::Config.load!('mongoid.yml')
@@ -47,34 +52,17 @@ class Service < ::Sinatra::Base
         errors += 'Invalid grant_type parameter.'
         nil
       end
-    if errors.blank? && (token = token_class.where(token: auth_value).first)
-      response_code = 200
-      token.destroy unless token.long_term?
-      unless (access_grant = Setup::OauthAccessGrant.with(token.account).where(application_id: app_id).first)
-        access_grant = Setup::OauthAccessGrant.with(token.account).new(application_id: app_id)
-      end
-      access_grant.scope = token.scope
-      access_grant.save if access_grant.changed?
-      token = OauthAccessToken.create(account: token.account, application_id: app_id)
-      content_hash =
-        {
-          access_token: token.token,
-          token_type: token.token_type,
-          created_at: token.created_at.to_i,
-          token_span: token.token_span
-        }
-      if Cenit::Scope.new(token.scope).offline_access? &&
-        OauthRefreshToken.where(account: token.account, application_id: app_id).blank?
-        refresh_token = OauthRefreshToken.create(account: token.account, application_id: app_id)
-        content_hash[:refresh_token] = refresh_token.token
-      end
-    else
-      errors += "Invalid #{grant_type.gsub('_', ' ')}." if token_class
-      content_hash =
+    content_hash =
+      if errors.blank? && (token = token_class.where(token: auth_value).first)
+        response_code = 200
+        token.destroy unless token.long_term?
+        OauthAccessToken.for(token.account.owner, app_id, token.scope)
+      else
+        errors += "Invalid #{grant_type.gsub('_', ' ')}." if token_class
         {
           error: errors
         }
     end
     halt response_code, { 'Content-Type' => 'application/json' }, content_hash.to_json
   end
-end
+# end

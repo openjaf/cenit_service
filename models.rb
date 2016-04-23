@@ -1,5 +1,6 @@
 require 'nokogiri'
 require 'devise'
+require 'jwt'
 
 module AccountScoped
   extend ActiveSupport::Concern
@@ -48,6 +49,11 @@ end
 
 class User
   include Mongoid::Document
+
+  field :email, type: String, default: ''
+  field :name, type: String
+
+  field :confirmed_at, type: DateTime
 
   field :unique_key, type: String
 
@@ -120,11 +126,17 @@ module Cenit
 
   class Scope
 
-    def initialize(scope)
+    def initialize(scope = '')
+      scope = scope.to_s
       @nss = Set.new
       @data_types = Hash.new { |h, k| h[k] = Set.new }
       scope = scope.to_s.strip
-      @openid, scope = split(scope, %w(openid email address phone offline_access))
+      @openid, scope = split(scope, %w(openid email profile address phone offline_access))
+      @offline_access = openid.delete(:offline_access)
+      if openid.present? && !openid.include?(:openid)
+        openid.clear
+        fail
+      end
       @methods, scope = split(scope, %w(get post put delete))
       while scope.present?
         ns_begin, ns_end, next_idx =
@@ -171,7 +183,7 @@ module Cenit
     end
 
     def valid?
-      methods.present? && (nss.present? || data_types.present?)
+      openid.present? || (methods.present? && (nss.present? || data_types.present?))
     end
 
     def to_s
@@ -183,42 +195,65 @@ module Cenit
 
     def descriptions
       d = []
-      d << methods.to_sentence + ' records from ' +
-        if nss.present?
-          'namespace' + (nss.size == 1 ? ' ' : 's ') + nss.collect { |ns| space(ns) }.to_sentence
-        else
-          ''
-        end + (nss.present? && data_types.present? ? ', and ' : '') +
-        if data_types.present?
-          'data type' + (data_types.size == 1 ? ' ' : 's ') + data_types.collect { |ns, set| set.collect { |model| "#{space(ns)}::#{space(model)}" } }.flatten.to_sentence
-        else
-          ''
-        end
+      d << 'View your email' if email?
+      d << 'View your basic profile' if profile?
+      if methods.present?
+        d << methods.to_sentence + ' records from ' +
+          if nss.present?
+            'namespace' + (nss.size == 1 ? ' ' : 's ') + nss.collect { |ns| space(ns) }.to_sentence
+          else
+            ''
+          end + (nss.present? && data_types.present? ? ', and ' : '') +
+          if data_types.present?
+            'data type' + (data_types.size == 1 ? ' ' : 's ') + data_types.collect { |ns, set| set.collect { |model| "#{space(ns)}::#{space(model)}" } }.flatten.to_sentence
+          else
+            ''
+          end
+      end
       d << 'Do all these on your behalf.' if offline_access?
       d
     end
 
     def openid?
-      openid.inlude?(:openid)
+      openid.include?(:openid)
+    end
+
+    def email?
+      openid.include?(:email)
+    end
+
+    def profile?
+      openid.include?(:profile)
     end
 
     def offline_access?
-      openid.include?(:offline_access)
+      offline_access.present?
+    end
+
+    def merge(other)
+      merge = self.class.new
+      merge.instance_variable_set(:@offline_access, offline_access || other.instance_variable_get(:@offline_access))
+      merge.instance_variable_set(:@openid, (openid + other.instance_variable_get(:@openid)).uniq)
+      merge.instance_variable_set(:@methods, (methods + other.instance_variable_get(:@methods)).uniq)
+      merge.instance_variable_set(:@nss, nss + other.instance_variable_get(:@nss))
+      merge.instance_variable_set(:@data_types, data_types.merge(other.instance_variable_get(:@data_types)))
+      merge
     end
 
     private
 
-    attr_reader :openid, :methods, :nss, :data_types
+    attr_reader :offline_access, :openid, :methods, :nss, :data_types
 
     def space(str)
       str.index(' ') ? "'#{str}'" : str
     end
 
     def split(scope, tokens)
+      scope += ' '
       counters = Hash.new { |h, k| h[k] = 0 }
       while (method = tokens.detect { |m| scope.start_with?("#{m} ") })
         counters[method] += 1
-        scope = scope.from(method.length).strip
+        scope = scope.from(method.length).strip + ' '
       end
       if counters.values.all? { |v| v ==1 }
         [counters.keys.collect(&:to_sym), scope]
@@ -249,6 +284,75 @@ module Cenit
         uri.to_s
       end
     end
+  end
+
+  class << self
+
+    def http_proxy_options
+      options = {}
+      %w(http_proxy http_proxy_port http_proxy_user http_proxy_password).each do |option|
+        if option_value = send(option)
+          options[option] = option_value
+        end
+      end
+      options
+    end
+
+    def dynamic_model_loading?
+      !excluded_actions.include?(:load_model)
+    end
+
+    def excluded_actions(*args)
+      if args.length == 0
+        options[:excluded_actions]
+      else
+        self[:excluded_actions] = args.flatten.collect(&:to_s).join(' ').split(' ').collect(&:to_sym)
+      end
+    end
+
+    def reserved_namespaces(*args)
+      if args.length == 0
+        options[:reserved_namespaces]
+      else
+        self[:reserved_namespaces] = (options[:reserved_namespaces] + args[0].flatten.collect(&:to_s).collect(&:downcase)).uniq
+      end
+    end
+
+    def options
+      @options ||=
+        {
+          service_url: 'http://localhost:3000', #TODO Automatize default service url
+          service_schema_path: '/schema',
+          reserved_namespaces: %w(cenit default)
+        }
+    end
+
+    def [](option)
+      (value = options[option]).respond_to?(:call) ? value.call : value
+    end
+
+    def []=(option, value)
+      options[option] = value
+    end
+
+    def config(&block)
+      class_eval(&block) if block
+    end
+
+    def respond_to?(*args)
+      super || options.has_key?(args[0])
+    end
+
+    def method_missing(symbol, *args)
+      if !symbol.to_s.end_with?('=') && ((args.length == 0 && block_given?) || args.length == 1 && !block_given?)
+        self[symbol] = block_given? ? yield : args[0]
+      elsif args.length == 0 && !block_given?
+        self[symbol]
+      else
+        super
+      end
+    end
+
   end
 end
 
@@ -358,6 +462,52 @@ class OauthAccessToken < CenitToken
   field :token_type, type: Symbol, default: :Bearer
 
   validates_inclusion_of :token_type, in: [:Bearer]
+
+  class << self
+    def for(user, app_id, scope)
+      account = user.account
+      scope = Cenit::Scope.new(scope) unless scope.is_a?(Cenit::Scope)
+      unless (access_grant = Setup::OauthAccessGrant.with(account).where(application_id: app_id).first)
+        access_grant = Setup::OauthAccessGrant.with(account).new(application_id: app_id)
+      end
+      access_grant.scope = scope.to_s
+      access_grant.save
+      token = OauthAccessToken.create(account: account, application_id: app_id)
+      access =
+        {
+          access_token: token.token,
+          token_type: token.token_type,
+          created_at: token.created_at.to_i,
+          token_span: token.token_span
+        }
+      if scope.offline_access? &&
+        OauthRefreshToken.where(account: account, application_id: app_id).blank?
+        refresh_token = OauthRefreshToken.create(account: account, application_id: app_id)
+        access[:refresh_token] = refresh_token.token
+      end
+      if scope.openid?
+        payload =
+          {
+            iss: Cenit.homepage,
+            sub: user.id.to_s,
+            aud: app_id.identifier,
+            exp: access[:created_at] + access[:token_span],
+            iat: access[:created_at],
+          }
+        if scope.email? || scope.profile? #TODO Include other OpenID scopes
+          payload[:email] = user.email
+          payload[:email_verified] = user.confirmed_at.present?
+          if scope.profile?
+            payload[:given_name] = user.name
+            #TODO Family Name for Cenit Users
+            # payload[:family_name] = user.family_name
+          end
+        end
+        access[:id_token] = JWT.encode(payload, nil, 'none')
+      end
+      access
+    end
+  end
 end
 
 module Setup
