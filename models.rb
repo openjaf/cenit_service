@@ -131,8 +131,9 @@ module Cenit
       @nss = Set.new
       @data_types = Hash.new { |h, k| h[k] = Set.new }
       scope = scope.to_s.strip
-      @openid, scope = split(scope, %w(openid email profile address phone offline_access))
+      @openid, scope = split(scope, %w(openid email profile address phone offline_access auth))
       @offline_access = openid.delete(:offline_access)
+      @auth = openid.delete(:auth)
       if openid.present? && !openid.include?(:openid)
         openid.clear
         fail
@@ -210,8 +211,11 @@ module Cenit
             ''
           end
       end
-      d << 'Do all these on your behalf.' if offline_access?
       d
+    end
+
+    def auth?
+      auth.present?
     end
 
     def openid?
@@ -242,7 +246,7 @@ module Cenit
 
     private
 
-    attr_reader :offline_access, :openid, :methods, :nss, :data_types
+    attr_reader :auth, :offline_access, :openid, :methods, :nss, :data_types
 
     def space(str)
       str.index(' ') ? "'#{str}'" : str

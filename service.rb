@@ -52,17 +52,18 @@ end
         errors += 'Invalid grant_type parameter.'
         nil
       end
-    content_hash =
-      if errors.blank? && (token = token_class.where(token: auth_value).first)
+    if errors.blank? && (token = token_class.where(token: auth_value).first)
+      token.destroy unless token.long_term?
+      begin
+        content_hash = OauthAccessToken.for(token.account.owner, app_id, token.scope)
         response_code = 200
-        token.destroy unless token.long_term?
-        OauthAccessToken.for(token.account.owner, app_id, token.scope)
-      else
-        errors += "Invalid #{grant_type.gsub('_', ' ')}." if token_class
-        {
-          error: errors
-        }
+      rescue Exception => ex
+        errors += ex.message
+      end
+    else
+      errors += "Invalid #{grant_type.gsub('_', ' ')}." if token_class
     end
+    content_hash = { error: errors } if errors.present?
     halt response_code, { 'Content-Type' => 'application/json' }, content_hash.to_json
   end
 # end
