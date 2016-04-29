@@ -9,7 +9,7 @@ Cenit.config do
   homepage ENV['HOMEPAGE']
 end
 
-# class Service < ::Sinatra::Base
+class Service < ::Sinatra::Base
 
   configure do
     Mongoid::Config.load!('mongoid.yml')
@@ -66,4 +66,4 @@ end
     content_hash = { error: errors } if errors.present?
     halt response_code, { 'Content-Type' => 'application/json' }, content_hash.to_json
   end
-# end
+end
