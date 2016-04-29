@@ -236,6 +236,7 @@ module Cenit
 
     def merge(other)
       merge = self.class.new
+      merge.instance_variable_set(:@auth, offline_access || other.instance_variable_get(:@auth))
       merge.instance_variable_set(:@offline_access, offline_access || other.instance_variable_get(:@offline_access))
       merge.instance_variable_set(:@openid, (openid + other.instance_variable_get(:@openid)).uniq)
       merge.instance_variable_set(:@methods, (methods + other.instance_variable_get(:@methods)).uniq)
