@@ -26,6 +26,10 @@ class Account
       Thread.current[:current_account]
     end
 
+    def current=(account)
+      Thread.current[:current_account] = account
+    end
+
     def tenant_collection_prefix(options = {})
       sep = options[:separator] || ''
       acc_id =
@@ -414,6 +418,10 @@ module AccountTokenCommon
     Account.current = account if Account.current.nil?
     account
   end
+end
+
+class AccountToken < CenitToken
+  include AccountTokenCommon
 end
 
 module OauthTokenCommon

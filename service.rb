@@ -18,19 +18,21 @@ class Service < ::Sinatra::Base
   end
 
   before do
-    if (key = params[:key]) && (user = User.where(unique_key: key).first)
-      Thread.current[:current_account] = user.account
-    else
-      Setup::Notification.create(message: "Accessing service with an invalid user key: #{key}")
-      halt 401
-    end unless request.path == ENV['TOKEN_PATH']
+    Account.current = nil
   end
 
   get ENV['SCHEMA_PATH'] do
-    if (schema = Setup::Schema.where(namespace: params[:ns], uri: params[:uri]).first)
-      schema.cenit_ref_schema(service_url: request.base_url)
+    if (token = AccountToken.where(token: params[:token]).first)
+      token.set_current_account
+      token.destroy
+      if (schema = Setup::Schema.where(namespace: params[:ns], uri: params[:uri]).first)
+        schema.cenit_ref_schema(service_url: request.base_url)
+      else
+        halt 404
+      end
     else
-      halt 404
+      Setup::Notification.create(message: "Accessing service with an invalid token: #{params[:token]}")
+      halt 401
     end
   end
 
