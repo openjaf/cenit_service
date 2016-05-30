@@ -2,7 +2,9 @@ require 'sinatra'
 require 'mongoid'
 require './models'
 
-ENV['TOKEN_PATH'] = '/oauth/token'
+ENV['BASE_PATH'] = '/service'
+ENV['SCHEMA_PATH'] = ENV['BASE_PATH'] + '/schema'
+ENV['TOKEN_PATH'] = ENV['BASE_PATH'] + '/token'
 ENV['HOMEPAGE'] = 'www.cenit.io'
 
 Cenit.config do
@@ -24,7 +26,7 @@ class Service < ::Sinatra::Base
     end unless request.path == ENV['TOKEN_PATH']
   end
 
-  get '/schema' do
+  get ENV['SCHEMA_PATH'] do
     if (schema = Setup::Schema.where(namespace: params[:ns], uri: params[:uri]).first)
       schema.cenit_ref_schema(service_url: request.base_url)
     else
