@@ -12,7 +12,9 @@ module AccountScoped
 end
 
 class User
+  include Mongoid::Document
 
+  field :picture
 end
 
 class Account
@@ -414,8 +416,12 @@ module AccountTokenCommon
     before_create { self.account ||= Account.current }
   end
 
-  def set_current_account
-    Account.current = account if Account.current.nil?
+  def set_current_account!
+    set_current_account(force: true)
+  end
+
+  def set_current_account(options = {})
+    Account.current = account if Account.current.nil? || options[:force]
     account
   end
 end
@@ -514,6 +520,7 @@ class OauthAccessToken < CenitToken
           payload[:email_verified] = user.confirmed_at.present?
           if scope.profile?
             payload[:given_name] = user.name
+            payload[:picture] = "#{Cenit.homepage}/file/user/picture/#{user.id}/#{user.picture}"
             #TODO Family Name for Cenit Users
             # payload[:family_name] = user.family_name
           end

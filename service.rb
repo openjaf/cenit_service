@@ -23,7 +23,7 @@ class Service < ::Sinatra::Base
 
   get ENV['SCHEMA_PATH'] do
     if (token = AccountToken.where(token: params[:token]).first)
-      token.set_current_account
+      token.set_current_account!
       token.destroy
       if (schema = Setup::Schema.where(namespace: params[:ns], uri: params[:uri]).first)
         schema.cenit_ref_schema(service_url: request.base_url)
