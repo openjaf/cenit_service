@@ -1,5 +1,5 @@
 development:
-  # Configure available database sessions. (required)
+  # Configure available database clients. (required)
   clients:
     # Defines the default session. (required)
     default:
@@ -74,11 +74,9 @@ test:
         # low amounts for fast failures.
         max_retries: 1
         retry_interval: 0
-
 production:
-  # uri: <%= ENV['MONGOHQ_URL'] %>
   clients:
     default:
-      database: cenithub_produccion
-      hosts:
-        - localhost:27017
+     database: rails4_mongoid_development
+     hosts:
+       - localhost:27017

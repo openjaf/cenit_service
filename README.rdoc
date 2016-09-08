@@ -1,0 +1,3 @@
+== README
+
+This is a rails application that mount the cenit-service engine to serve a Cenit instance
