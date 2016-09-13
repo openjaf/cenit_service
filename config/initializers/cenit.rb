@@ -4,3 +4,5 @@ Cenit.config do
 
   schema_service_path '/schema'
 end
+
+Cenit::MultiTenancy.tenant_model Account
