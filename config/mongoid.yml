@@ -65,7 +65,7 @@ development:
 test:
   clients:
     default:
-      database: cenithub_test
+      database: cenit_development
       hosts:
         - localhost:27017
       options:
@@ -77,6 +77,6 @@ test:
 production:
   clients:
     default:
-     database: rails4_mongoid_development
+     database: cenit_development
      hosts:
        - localhost:27017
