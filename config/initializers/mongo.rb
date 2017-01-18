@@ -1,2 +1,2 @@
 
-Mongo::Logger.logger.level = ::Logger::FATAL
+# Mongo::Logger.logger.level = ::Logger::FATAL
